@@ -29,16 +29,35 @@
     src: meta-data.j2
     dest: "{{ vm_dir }}/meta-data"
 
+- name: Create temp directory for cloud-init ISO
+  ansible.builtin.file:
+    path: "{{ vm_dir }}/seed_tmp"
+    state: directory
+    mode: '0755'
+
+- name: Copy user-data to temp directory
+  ansible.builtin.copy:
+    src: "{{ vm_dir }}/user-data"
+    dest: "{{ vm_dir }}/seed_tmp/user-data"
+    remote_src: yes
+
+- name: Copy meta-data to temp directory
+  ansible.builtin.copy:
+    src: "{{ vm_dir }}/meta-data"
+    dest: "{{ vm_dir }}/seed_tmp/meta-data"
+    remote_src: yes
+
 - name: Generate cloud-init ISO
   ansible.builtin.command:
     cmd: >
-      hdiutil makehybrid
-      -o {{ seed_iso }}
-      -joliet -iso
-      {{ vm_dir }}/user-data
-      {{ vm_dir }}/meta-data
+      hdiutil makehybrid -o {{ seed_iso }} -joliet -iso {{ vm_dir }}/seed_tmp
   args:
     creates: "{{ seed_iso }}"
+
+- name: Remove temp directory for cloud-init ISO
+  ansible.builtin.file:
+    path: "{{ vm_dir }}/seed_tmp"
+    state: absent
 
 - name: Create VM disk
   ansible.builtin.command:
@@ -66,7 +85,7 @@
         -drive if=pflash,format=raw,readonly=on,file=/opt/homebrew/share/qemu/edk2-aarch64-code.fd \
         -drive if=pflash,format=raw,file=/opt/homebrew/share/qemu/edk2-arm-vars.fd \
         -drive file={{ vm_disk }},if=virtio \
-        -drive file={{ seed_iso }},if=virtio \
+        -drive file={{ seed_iso }},if=virtio,format=raw \
         -device virtio-net-device,netdev=net0 \
         -netdev user,id=net0,hostfwd=tcp::{{ vm_ssh_port }}-:22 \
         -nographic
