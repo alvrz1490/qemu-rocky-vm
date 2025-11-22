@@ -1,0 +1,76 @@
+
+- name: Create VM directory
+  ansible.builtin.file:
+    path: "{{ vm_dir }}"
+    state: directory
+    mode: '0755'
+
+- name: Download Rocky Linux cloud image
+  ansible.builtin.get_url:
+    url: "{{ rocky_image_url }}"
+    dest: "{{ rocky_image_local }}"
+    mode: '0644'
+  retries: 3
+  delay: 10
+
+- name: Create cloud-init user-data
+  ansible.builtin.template:
+    src: user-data.j2
+    dest: "{{ vm_dir }}/user-data"
+
+- name: Create cloud-init meta-data
+  ansible.builtin.template:
+    src: meta-data.j2
+    dest: "{{ vm_dir }}/meta-data"
+
+- name: Generate cloud-init ISO
+  ansible.builtin.command:
+    cmd: >
+      hdiutil makehybrid
+      -o {{ seed_iso }}
+      -joliet -iso
+      {{ vm_dir }}/user-data
+      {{ vm_dir }}/meta-data
+  args:
+    creates: "{{ seed_iso }}"
+
+- name: Create VM disk
+  ansible.builtin.command:
+    cmd: qemu-img create -f qcow2 {{ vm_disk }} {{ vm_disk_size }}
+  args:
+    creates: "{{ vm_disk }}"
+
+- name: Copy base image into VM disk
+  ansible.builtin.command:
+    cmd: cp {{ rocky_image_local }} {{ vm_disk }}
+  when: rocky_image_local is file
+
+- name: Create QEMU start script
+  ansible.builtin.copy:
+    dest: "{{ vm_dir }}/start.sh"
+    mode: '0755'
+    content: |
+      #!/bin/bash
+      qemu-system-aarch64 \
+        -machine virt,highmem=off \
+        -cpu host \
+        -accel hvf \
+        -smp {{ vm_cpus }} \
+        -m {{ vm_memory }} \
+        -drive if=pflash,format=raw,readonly=on,file=/opt/homebrew/share/qemu/edk2-aarch64-code.fd \
+        -drive if=pflash,format=raw,file=/opt/homebrew/share/qemu/edk2-arm-vars.fd \
+        -drive file={{ vm_disk }},if=virtio \
+        -drive file={{ seed_iso }},if=virtio \
+        -device virtio-net-device,netdev=net0 \
+        -netdev user,id=net0,hostfwd=tcp::{{ vm_ssh_port }}-:22 \
+        -nographic
+
+- name: Display VM start instructions
+  ansible.builtin.debug:
+    msg: |
+      VM '{{ vm_name }}' is ready.
+      Start it with:
+          bash {{ vm_dir }}/start.sh
+
+      SSH after it boots:
+          ssh {{ vm_ssh_user }}@127.0.0.1 -p {{ vm_ssh_port }}
