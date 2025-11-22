@@ -1,4 +1,3 @@
-
 - name: Create VM directory
   ansible.builtin.file:
     path: "{{ vm_dir }}"
@@ -10,8 +9,15 @@
     url: "{{ rocky_image_url }}"
     dest: "{{ rocky_image_local }}"
     mode: '0644'
+    force: no
+  register: rocky_image_download
   retries: 3
   delay: 10
+  until: rocky_image_download is succeeded
+
+- name: Debug image download result
+  ansible.builtin.debug:
+    var: rocky_image_download
 
 - name: Create cloud-init user-data
   ansible.builtin.template:
