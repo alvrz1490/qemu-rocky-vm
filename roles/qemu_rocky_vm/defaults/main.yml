@@ -7,7 +7,7 @@ vm_ssh_user: "devops"
 vm_ssh_pubkey: "{{ lookup('file', '~/.ssh/id_ed25519.pub') }}"
 vm_ssh_port: 2222
 
-rocky_image_url: "https://download.rockylinux.org/pub/rocky/9/images/Rocky-9-GenericCloud.latest.aarch64.qcow2"
+rocky_image_url: "https://download.rockylinux.org/pub/rocky/9/images/aarch64/Rocky-9-GenericCloud.latest.aarch64.qcow2"
 rocky_image_local: "{{ vm_dir }}/rocky9-base.qcow2"
 seed_iso: "{{ vm_dir }}/seed.iso"
 vm_disk: "{{ vm_dir }}/rocky9.qcow2"
